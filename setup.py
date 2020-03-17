@@ -21,4 +21,4 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.6',
-    zip_safe=False, install_requires=['cv2', 'numpy', 'keras', 'pandas', 'matplotlib', 'seaborn', 'shap'])
+    zip_safe=False, install_requires=['cv2', 'numpy', 'keras', 'pandas', 'matplotlib', 'seaborn', 'shap', 'pathlib'])

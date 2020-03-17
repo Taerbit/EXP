@@ -147,3 +147,10 @@ class OutlineSignificance(Metric):
         return output
 
 '''
+
+"""
+
+    Finn Torbet - 15/13/2020
+    BSc Applied Computing Honours Project
+
+"""

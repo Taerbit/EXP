@@ -11,7 +11,7 @@ class empty():
         return
 
     def pass_through(self, image, label):
-        return image
+        return label
 
 
 class gradient_shap():
@@ -56,3 +56,10 @@ class gradient_shap():
             np.save(self.matrix_path + str(self.matrix_counter) + ".npy", shap_value)
 
         return shap_value
+
+"""
+
+    Finn Torbet - 15/13/2020
+    BSc Applied Computing Honours Project
+
+"""

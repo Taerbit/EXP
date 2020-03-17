@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from keras.preprocessing.image import load_img, img_to_array
 import pandas as pd
+import pathlib
 
 
 """
@@ -20,47 +21,46 @@ import pandas as pd
 class Sorter:
     """Given a list of filenames, find the numerical value for each filepath and make sure they match up"""
 
-    def __init__(self, containters):
-        self.containers = containters
+    def __init__(self, containers):
+        self.containers = containers
 
-    def validate(self, a):
-        """Checks if all zero or positive values match"""
-        unique_value = a[np.where(a > -1)]
-        for x in a:
-            if x == -1:
-                continue
-            if x != unique_value:
-                return False
-        return True
-
-    def find_smallest(self, a):
-        min = a[np.where(a > -1)]
+    def load_frame(self):
+        load = []
+        for c in self.containers:
+            load.append(c.load())
+        return load
 
     def has_next(self):
         for c in self.containers:
-            if not c.data_remaining() == True:
+            if not c.data_remaining():
                 return False
         return True
 
+
+    def match(self, a):
+        max = np.amax(a)
+        for i, n in enumerate(a):
+            if n != -1 and n != max:
+                return i
+        return -1
+
+    def get_all_numbers(self):
+        numbers = []
+        for c in self.containers:
+            numbers.append(c.get_number())
+        return numbers
+
     def get_next(self):
         """Returns the next lot of data in the order of containers"""
+
         while True:
-            check = np.empty(len(self.containers))
-            for i, c in enumerate(self.containers):
-                check[i] = c.get_number()
 
-            if self.validate(check) == True:
+            match = self.match(self.get_all_numbers())
 
-                loaded_data = []
-                for l in self.containers:
-                    loaded_data.append(l.load())
-                return loaded_data
-
+            if match == -1:
+                return self.load_frame()
             else:
-
-                smallest = self.find_smallest(check)
-                if self.containers[smallest].increment() == False:
-                    return False
+                self.containers[match].increment()
 
     def get_id(self):
         # Sort through data for best fit (a flag in a container [set at construction] to indicate a 'identification' container )
@@ -78,6 +78,9 @@ class Linear_Loader():
     def get_next(self):
         return self.c.load()
 
+    def get_id(self):
+        return self.c.get_number()
+
 
 """
 
@@ -91,14 +94,21 @@ class Linear_Loader():
             
 """
 
+def get_all_paths(src, file_extension):
+    image_root = pathlib.Path(src)
+    all_paths = list(image_root.glob(file_extension))
+    all_paths = [str(path) for path in all_paths]
+    return all_paths
+
 
 class Container(ABC):
 
-    def __init__(self, filepaths, tags, ordered):
+    def __init__(self, tags, ordered, children):
         self.counter = 0
-        self.fp = filepaths  # List of filepaths in order
+        self.fp = get_all_paths(tags[0], "*" + tags[1])  # List of filepaths in order
         self.tags = tags     # List of elements of the filepaths that are not
         self.ordered = ordered
+        self.children = children
 
 
     @abstractmethod
@@ -106,14 +116,24 @@ class Container(ABC):
         """Load the current file at position counter in the filepaths array"""
         pass
 
+    def increment(self):
+        self.counter = self.counter + 1
+        if not self.children == []:
+            for c in self.children:
+                if not c.increment():
+                    return False
+        return self.data_remaining()
+
     def get_number(self):
         """Return the number from the current filepath at counter"""
-        if self.ordered == True:
+        if self.ordered:
             strip = self.fp[self.counter]
 
             for tag in self.tags:
-                if tag == int:
+                if isinstance(tag, int):
                     strip.lstrip(str(tag))
+                    if strip == "":
+                        strip = str(tag)
                 else:
                     strip = strip.replace(str(tag), '')
 
@@ -122,29 +142,31 @@ class Container(ABC):
             return -1
 
     def data_remaining(self):
-        """Increment the counter by one"""
-        self.counter = self.counter + 1
-        if self.counter+1 == len(self.fp):
+        """getter method asking if there is any data remaining.
+        Return True if there is data still to be retreived,
+        False if not"""
+
+        if self.counter == len(self.fp):
             return False
         else:
             return True
 
 class Segmentation(Container):
 
-    def __init__(self, filepaths, tags, output_size, ordered=True):
-        super(Segmentation, self).__init__(filepaths, tags, ordered)
+    def __init__(self, tags, output_size, ordered=True, children=[]):
+        super(Segmentation, self).__init__(tags, ordered, children)
         self.output_size = output_size
 
     def load(self):
         image = cv2.imread(self.fp[self.counter])
         image = cv2.resize(image, self.output_size)
-        self.counter = self.counter + 1
-        return image, self.data_remaining()
+        self.increment()
+        return image
 
 class Input_Image(Container):
 
-    def __init__(self, filepaths, tags, input_size, ordered=True):
-        super(Input_Image, self).__init__(filepaths, tags, ordered)
+    def __init__(self, tags, input_size, ordered=True, children=[]):
+        super(Input_Image, self).__init__(tags, ordered, children)
         self.input_size = input_size
 
     def load(self):
@@ -155,32 +177,39 @@ class Input_Image(Container):
             return (x / 128) - 1
 
         image = normalize(image)
-        self.counter = self.counter + 1
-        return image, self.data_remaining()
+        self.increment()
+        return image
 
 class Matrix(Container):
     """Load in metric ready, precompiled matrices from a previous algorithms generation"""
-    def __init__(self, filepaths, tags, ordered=True):
-        super(Matrix, self).__init__(filepaths, tags, ordered)
+    def __init__(self, tags, ordered=True, children=[]):
+        super(Matrix, self).__init__(tags, ordered, children)
 
     def load(self):
         matrix = np.load(self.fp[self.counter])
-        self.counter = self.counter + 1
-        return matrix, self.data_remaining()
+        self.increment()
+        return matrix
 
 class Label(Container):
 
-    def __init__(self, filepath, column_header, tags=[""], ordered=True):
-        super(Label, self).__init__(filepath, tags, ordered)
+    def __init__(self, column_header, tag, ordered=True, children=[]):
+        super(Label, self).__init__(tag, ordered, children)
 
         # Load information now
-        data = pd.read_csv(filepath)
+        data = pd.read_csv(self.fp[0])
         self.fp = data[column_header]
 
     def load(self):
-        self.counter = self.counter + 1
-        return self.fp[self.counter], self.data_remaining()
+        self.increment()
+        return self.fp[self.counter]
 
 
     def get_number(self):
         return self.fp[self.counter]
+
+"""
+
+    Finn Torbet - 15/13/2020
+    BSc Applied Computing Honours Project
+
+"""
