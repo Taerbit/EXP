@@ -1,6 +1,8 @@
 import EXP
 import cv2
 
+output_size = (128, 128)
+
 
 def check_images_match(p1, p2):
     if p1.shape == p2.shape:
@@ -12,31 +14,33 @@ def check_images_match(p1, p2):
 
 
 def test_segmentation_base_functions():
-    output_size = (128, 128)
+    s = s = EXP.Input.Segmentation(["test_data\\", "test.png", 0],
+                               output_size)
 
-    s = EXP.Input.Segmentation(["test_data\\", "test.png", 0],
-                       output_size)
-
-    x = s
     assert s.get_number() == 1
     assert s.increment()
     assert s.get_number() == 2
     s.increment()
     assert s.increment() == False
 
+def test_segmentation_loading():
+    s = s = EXP.Input.Segmentation(["test_data\\", "test.png", 0],
+                               output_size)
+
     # Test Loading
-    filepaths = ["test_data\\001test.png",
-                 "test_data\\002test.png",
-                 "test_data\\003test.png"]
+    filepaths = ["C:\\Users\\finnt\PycharmProjects\\EXP\\test\\test_data\\0001test.png",
+                 "C:\\Users\\finnt\PycharmProjects\\EXP\\test\\test_data\\0002test.png",
+                 "C:\\Users\\finnt\PycharmProjects\\EXP\\test\\test_data\\0003test.png"]
     img = []
     for i in range(3):
         image = cv2.imread(filepaths[i])
-        img.append(cv2.resize(image, (output_size[0], output_size[1])))
+        img.append(cv2.resize(image, output_size))
 
-    assert check_images_match(x.load(), img[0])
-    assert check_images_match(x.load(), img[1])
-    assert check_images_match(x.load(), img[2])
+    assert check_images_match(s.load(), img[0])
+    assert check_images_match(s.load(), img[1])
+    assert check_images_match(s.load(), img[2])
 
+#def test_input_image():
 
 
 '''

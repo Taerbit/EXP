@@ -23,13 +23,13 @@ def pipeline(input, algos, metrics, model=False):
     if not model:
         temp = ['ID']
     else:
-        temp = ['ID', 'Correct', 'Score', 'Predicted', 'Truth']
+        temp = ['ID', 'Correct', 'True Class', 'True Class Score', 'Predicted Class', 'Predicted Class Score']
 
     for m in metrics:
         temp.append(m.name)
     x = pd.DataFrame(columns=temp)
 
-    # Create n copies of x based on the number of algos
+    # Create n copies of the x pandas Dataframe where n is the number of algos
     results = []
     for i in range(len(algos)):
         results.append(x)
@@ -37,44 +37,47 @@ def pipeline(input, algos, metrics, model=False):
     data_counter = 0
     print("Starting Data Loop")
 
-    # Load all the data through the interpretability algorithm and metrics
+    # Load all the data through the interpretability algorithm and then metrics
     while input.has_next():
 
         # load data
         data = input.get_next()
 
         id = input.get_id()
+        print(str(data_counter) + " - " + id)
 
         for x, a in enumerate(algos):
 
             def add_common_attributes(id, model, img, label):
                 pred = model.predict(np.array([img]))
                 pred_label = np.argmax(pred)
-                score = pred[0][pred_label]
+                predicted_score = pred[0][pred_label]
+                label_score = pred[0][label]
                 if label == pred_label:
                     correct = True
                 else:
                     correct = False
-                return [id, correct, score, pred_label, label]
+                return [id, correct, label, label_score, pred_label, predicted_score]
 
             if not model:
                 current_row = [id]
             else:
                 # Process the default output (Correct, Score, Predicted, Labelled)
-                current_row = add_common_attributes(id, model, data[0], data[1])
+                current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
 
+            param = a.get_input()
+            input_data = []
+            for p in param:
+                input_data.append(data[p])
 
-            matrix = a.pass_through(data[0], data[1])  # Send image and label away
+            matrix = a.pass_through(input_data)  # Send image and label away
 
             # Process algorithm result through all metrics
             for y, m in enumerate(metrics):
-                current_row.append(m.process(matrix, data[2]))  # Send matrix and segmentation away
+                current_row.append(m.process(matrix, data["Segmentation"]))  # Send matrix and segmentation away
 
-            results[x].loc[data_counter] = current_row
-            print(data_counter)
+            (results[x]).loc[data_counter] = current_row
             data_counter = data_counter + 1
-
-
     return results
 
 
@@ -100,7 +103,7 @@ def histogram(results, save_path, metric_index):
     plt.clf()
 
 
-def scatterplot(results, save_path, metric_index, y_name="Score"):
+def scatterplot(results, save_path, metric_index, y_name="True Class Score"):
     sns.scatterplot(x=results.iloc[:, metric_index], y=y_name, hue="Correct", style="Correct", data=results)
     print("Saving...\t" + y_name + " Scatter")
     plt.savefig(save_path + "_" + y_name + "_scatter.png")
@@ -163,7 +166,7 @@ def Hons(model, filepaths, tags, input_size=(225, 300), output_size=(1022, 767),
 
 
 # e.g. filepath = [[list of image paths], [path to csv, target column], [list of segmentation paths]]
-def pre_loaded_shap(tags, input_size=(225, 300), output_size=(1022, 767),
+def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
                     output=os.getcwd(), inside_colour=255,
                     save_matrices=False, save_imgs=False, save_csv=False):
     #       INPUT
@@ -171,7 +174,8 @@ def pre_loaded_shap(tags, input_size=(225, 300), output_size=(1022, 767),
     i = Input.Matrix(tags[1], ordered=False)
     container = [Input.Input_Image(tags[0], input_size, children=[i]),
                  i,
-                 Input.Segmentation(tags[2], output_size)]
+                 Input.Segmentation(tags[2], output_size),
+                 Input.Label(tags[3], "benign", "image")]
     input = Input.Sorter(container)
 
     #       ALGO
@@ -183,13 +187,14 @@ def pre_loaded_shap(tags, input_size=(225, 300), output_size=(1022, 767),
                Metrics.N(inside_colour, 2),
                Metrics.N(inside_colour, 3)]
 
-    data = pipeline(input, algos, metrics, model=False)
+    data = pipeline(input, algos, metrics, model)
 
     for i, result in enumerate(data):
         for m in range(len(metrics)):
             histogram(result, output + "_" + str(i), m + 1)
             scatterplot(result, output + "_" + str(i), m + 1)
             scatterplot(result, output + "_" + str(i), m + 1, y_name="Average")
+            scatterplot(result, output + "_" + str(i), m + 1, y_name="Predicted Class Score")
 
         if save_csv:
             print("Saving...\tresults.csv for " + str(i))

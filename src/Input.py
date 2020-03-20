@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 import cv2
 import numpy as np
@@ -25,9 +26,9 @@ class Sorter:
         self.containers = containers
 
     def load_frame(self):
-        load = []
+        load = {}
         for c in self.containers:
-            load.append(c.load())
+            load[c.name] = c.load()
         return load
 
     def has_next(self):
@@ -40,7 +41,7 @@ class Sorter:
     def match(self, a):
         max = np.amax(a)
         for i, n in enumerate(a):
-            if n != -1 and n != max:
+            if n != -1 and max != n:
                 return i
         return -1
 
@@ -64,7 +65,7 @@ class Sorter:
 
     def get_id(self):
         # Sort through data for best fit (a flag in a container [set at construction] to indicate a 'identification' container )
-        return self.containers[0].get_number() # Just returns the first container's current name
+        return self.containers[3].fp[self.containers[3].counter] # Just returns the first container's current name
 
 
 class Linear_Loader():
@@ -120,7 +121,7 @@ class Container(ABC):
         self.counter = self.counter + 1
         if not self.children == []:
             for c in self.children:
-                if not c.increment():
+                if not c.data_remaining():
                     return False
         return self.data_remaining()
 
@@ -156,6 +157,7 @@ class Segmentation(Container):
     def __init__(self, tags, output_size, ordered=True, children=[]):
         super(Segmentation, self).__init__(tags, ordered, children)
         self.output_size = output_size
+        self.name = "Segmentation"
 
     def load(self):
         image = cv2.imread(self.fp[self.counter])
@@ -168,6 +170,7 @@ class Input_Image(Container):
     def __init__(self, tags, input_size, ordered=True, children=[]):
         super(Input_Image, self).__init__(tags, ordered, children)
         self.input_size = input_size
+        self.name= "Input_Image"
 
     def load(self):
         image = load_img(self.fp[self.counter], target_size=(225, 300))
@@ -184,6 +187,7 @@ class Matrix(Container):
     """Load in metric ready, precompiled matrices from a previous algorithms generation"""
     def __init__(self, tags, ordered=True, children=[]):
         super(Matrix, self).__init__(tags, ordered, children)
+        self.name = "Matrix"
 
     def load(self):
         matrix = np.load(self.fp[self.counter])
@@ -192,20 +196,22 @@ class Matrix(Container):
 
 class Label(Container):
 
-    def __init__(self, column_header, tag, ordered=True, children=[]):
+    def __init__(self, tag, label_header, name_header, ordered=True, children=[]):
         super(Label, self).__init__(tag, ordered, children)
 
         # Load information now
         data = pd.read_csv(self.fp[0])
-        self.fp = data[column_header]
+        self.fp = data[name_header]
+        self.fp = self.fp.values.tolist()
+
+        self.labels = data[label_header]
+        self.labels = self.labels.values.tolist()
+
+        self.name = "Label"
 
     def load(self):
         self.increment()
-        return self.fp[self.counter]
-
-
-    def get_number(self):
-        return self.fp[self.counter]
+        return self.labels[self.counter]
 
 """
 

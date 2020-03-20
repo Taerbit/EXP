@@ -10,8 +10,11 @@ class empty():
     def __init__(self):
         return
 
-    def pass_through(self, image, label):
-        return label
+    def pass_through(self, data):
+        return data[0]
+
+    def get_input(self):
+        return ["Matrix"]
 
 
 class gradient_shap():
@@ -41,7 +44,10 @@ class gradient_shap():
 
         return metric_ready
 
-    def pass_through(self, image, label):
+    def pass_through(self, data):
+
+        image = data[0]
+        label = data[1]
 
         shap_value = self.e.shap_values(image)
 
@@ -56,6 +62,9 @@ class gradient_shap():
             np.save(self.matrix_path + str(self.matrix_counter) + ".npy", shap_value)
 
         return shap_value
+
+    def get_input(self):
+        return ["Input_Image", "Label"]
 
 """
 
