@@ -5,7 +5,7 @@ import numpy as np
 from keras.preprocessing.image import load_img, img_to_array
 import pandas as pd
 import pathlib
-
+import natsort
 
 """
 
@@ -22,14 +22,17 @@ import pathlib
 class Sorter:
     """Given a list of filenames, find the numerical value for each filepath and make sure they match up"""
 
-    def __init__(self, containers):
+    def __init__(self, containers, id_index=0):
         self.containers = containers
+        self.id_index = id_index
 
     def load_frame(self):
         load = {}
+        identifier = self.containers[self.id_index]
+        id = str(identifier.fp[identifier.counter])
         for c in self.containers:
             load[c.name] = c.load()
-        return load
+        return load, id
 
     def has_next(self):
         for c in self.containers:
@@ -63,10 +66,6 @@ class Sorter:
             else:
                 self.containers[match].increment()
 
-    def get_id(self):
-        # Sort through data for best fit (a flag in a container [set at construction] to indicate a 'identification' container )
-        return self.containers[3].fp[self.containers[3].counter] # Just returns the first container's current name
-
 
 class Linear_Loader():
 
@@ -99,6 +98,7 @@ def get_all_paths(src, file_extension):
     image_root = pathlib.Path(src)
     all_paths = list(image_root.glob(file_extension))
     all_paths = [str(path) for path in all_paths]
+    all_paths = natsort.natsorted(all_paths)
     return all_paths
 
 
@@ -123,6 +123,8 @@ class Container(ABC):
             for c in self.children:
                 if not c.data_remaining():
                     return False
+                else:
+                    c.increment()
         return self.data_remaining()
 
     def get_number(self):
@@ -162,8 +164,19 @@ class Segmentation(Container):
     def load(self):
         image = cv2.imread(self.fp[self.counter])
         image = cv2.resize(image, self.output_size)
-        self.increment()
+        self.counter = self.counter + 1
         return image
+
+def load_input_image(src, target_size):
+    image = load_img(src, target_size=target_size)
+    image = img_to_array(image)
+
+    def normalize(x):
+        return (x / 128) - 1
+
+    image = normalize(image)
+    return image
+
 
 class Input_Image(Container):
 
@@ -173,14 +186,8 @@ class Input_Image(Container):
         self.name= "Input_Image"
 
     def load(self):
-        image = load_img(self.fp[self.counter], target_size=(225, 300))
-        image = img_to_array(image)
-
-        def normalize(x):
-            return (x / 128) - 1
-
-        image = normalize(image)
-        self.increment()
+        image = load_input_image(self.fp[self.counter], target_size=(225, 300))
+        self.counter = self.counter + 1
         return image
 
 class Matrix(Container):
@@ -191,7 +198,7 @@ class Matrix(Container):
 
     def load(self):
         matrix = np.load(self.fp[self.counter])
-        self.increment()
+        self.counter = self.counter + 1
         return matrix
 
 class Label(Container):
@@ -210,8 +217,9 @@ class Label(Container):
         self.name = "Label"
 
     def load(self):
-        self.increment()
-        return self.labels[self.counter]
+        l = self.labels[self.counter]
+        self.counter = self.counter + 1
+        return l
 
 """
 

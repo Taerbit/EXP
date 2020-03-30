@@ -1,12 +1,22 @@
 import Controller
+import pandas as pd
+output_dir = "C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\metric\\shap\\2\\"
 
-# run Hons pipeline
-image_tags = ["C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\Lesions\\", ".jpg", "ISIC_", "_downsampled", 0]
-seg_tags = ["C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\Segmentations\\", ".png", "ISIC_", "_segmentation", 0]
-label_tags = ["C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\shap\\Dual Classifier\\", "_sorted.npy",]
-
-input_tags = [image_tags, label_tags, seg_tags]
-
-output_dir = "C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\metric\\shap\\1"
-
-Controller.pre_loaded_shap(input_tags, output=output_dir, save_csv=True)
+results = pd.read_csv(output_dir + "0.csv")
+metric_names = [
+    "Average",
+    "N(1)",
+    "N(2)",
+    "N(3)",
+    "N(4)"
+]
+explainer = [
+    "Average Inside / Average Outside",
+    "Ratio of highest values inside the segmentation  (Inside/Outside)"
+]
+for m in range(5):
+    o = output_dir +  metric_names[m]
+    Controller.histogram(results, o, m + 7)
+    Controller.scatterplot(results, o, m + 7, x=explainer[m])
+    Controller.scatterplot(results, o, m + 7, y_name="Average", y="Average Inside / Average Outside", x=explainer[m])
+    Controller.scatterplot(results, o, m + 7, y_name="Predicted Class Score", x=explainer[m])

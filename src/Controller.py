@@ -31,20 +31,20 @@ def pipeline(input, algos, metrics, model=False):
 
     # Create n copies of the x pandas Dataframe where n is the number of algos
     results = []
-    for i in range(len(algos)):
-        results.append(x)
+    for a in algos:
+        df = x
+        df.name = a.name
+        results.append(df)
 
     data_counter = 0
-    print("Starting Data Loop")
+    print("Starting Pipeline Loop")
 
     # Load all the data through the interpretability algorithm and then metrics
     while input.has_next():
 
         # load data
-        data = input.get_next()
-
-        id = input.get_id()
-        print(str(data_counter) + " - " + id)
+        data, id = input.get_next()
+        print(str(data_counter) + ":\t" + id)
 
         for x, a in enumerate(algos):
 
@@ -103,8 +103,12 @@ def histogram(results, save_path, metric_index):
     plt.clf()
 
 
-def scatterplot(results, save_path, metric_index, y_name="True Class Score"):
-    sns.scatterplot(x=results.iloc[:, metric_index], y=y_name, hue="Correct", style="Correct", data=results)
+def scatterplot(results, save_path, metric_index, y_name="True Class Score", x="", y=""):
+    ax = sns.scatterplot(x=results.iloc[:, metric_index], y=y_name, hue="Correct", style="Correct", data=results)
+    if x != "":
+        ax.set(xlabel=x)
+    if y != "":
+        ax.set(ylabel=y)
     print("Saving...\t" + y_name + " Scatter")
     plt.savefig(save_path + "_" + y_name + "_scatter.png")
 
@@ -162,6 +166,7 @@ def Hons(model, filepaths, tags, input_size=(225, 300), output_size=(1022, 767),
 """
 
     pre_loaded_shap
+    
 """
 
 
@@ -171,34 +176,36 @@ def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
                     save_matrices=False, save_imgs=False, save_csv=False):
     #       INPUT
 
-    i = Input.Matrix(tags[1], ordered=False)
-    container = [Input.Input_Image(tags[0], input_size, children=[i]),
-                 i,
+    container = [Input.Input_Image(tags[0], input_size),
+                 Input.Matrix(tags[1]),
                  Input.Segmentation(tags[2], output_size),
                  Input.Label(tags[3], "benign", "image")]
-    input = Input.Sorter(container)
+    input = Input.Sorter(container, 3)
 
     #       ALGO
-    algos = [Algorithm.empty()]
+    algos = [Algorithm.empty("shap_preloaded")]
 
     #       METRICS
     metrics = [Metrics.Average(inside_colour),
                Metrics.N(inside_colour, 1),
                Metrics.N(inside_colour, 2),
-               Metrics.N(inside_colour, 3)]
+               Metrics.N(inside_colour, 3),
+               Metrics.N(inside_colour, 4)]
 
     data = pipeline(input, algos, metrics, model)
 
-    for i, result in enumerate(data):
+    for result in data:
         for m in range(len(metrics)):
-            histogram(result, output + "_" + str(i), m + 1)
-            scatterplot(result, output + "_" + str(i), m + 1)
-            scatterplot(result, output + "_" + str(i), m + 1, y_name="Average")
-            scatterplot(result, output + "_" + str(i), m + 1, y_name="Predicted Class Score")
+            o = output + result.name + "_" + metrics[m].name
+            print("\t\n" + result.columns[m+6])
+            histogram(result, o, m + 6)
+            scatterplot(result, o, m + 6)
+            scatterplot(result, o, m + 6, y_name="Average")
+            scatterplot(result, o, m + 6, y_name="Predicted Class Score")
 
         if save_csv:
-            print("Saving...\tresults.csv for " + str(i))
-            result.to_csv(output + "" + str(i) + ".csv")
+            print("\nSaving...\tresults.csv for " + result.name)
+            result.to_csv(output + "" + result.name + ".csv")
 
 
 """
