@@ -1,7 +1,9 @@
 import EXP
 import cv2
+import numpy as np
 
 output_size = (128, 128)
+input_size = (255, 300)
 
 
 def check_images_match(p1, p2):
@@ -24,7 +26,7 @@ def test_segmentation_base_functions():
     assert s.increment() == False
 
 def test_segmentation_loading():
-    s = s = EXP.Input.Segmentation(["test_data\\", "test.png", 0],
+    s = EXP.Input.Segmentation(["test_data\\", "test.png", 0],
                                output_size)
 
     # Test Loading
@@ -40,7 +42,16 @@ def test_segmentation_loading():
     assert check_images_match(s.load(), img[1])
     assert check_images_match(s.load(), img[2])
 
-#def test_input_image():
+def test_input_image():
+    i = EXP.Input.Input_Image(["test_data\\", ".jpg"], input_size)
+
+    img = i.load()
+
+    x = EXP.Input.load_input_image("test_data\\input0.jpg", input_size)
+
+    assert np.array_equals(img, x)
+
+test_input_image()
 
 
 '''

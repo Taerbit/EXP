@@ -5,7 +5,6 @@ class Metric(ABC):
 
     name = "Metric"
 
-    @abstractmethod
     def process(self, matrix, segmentation):
         pass
 
@@ -119,34 +118,6 @@ class N(Metric):
             output = i_intersection / (o_intersection + self.denominator_constant)
 
             return output
-'''
-class OutlineSignificance(Metric):
-
-    def __init__(self, width, inside_colour, outside_colour):
-        self.width = width
-        self.inside_colour = inside_colour
-        self.outside_colour = outside_colour
-
-    def perform_analysis(self, grad_matrix, segmentation):
-
-        # Retreive the outline matrix and replace outside_colour with 0 and inside with 1
-        kernel = np.ones((self.width, self.width), np.uint8)
-        outline_matrix = cv2.dilate(cv2.UMat(segmentation), kernel, iterations=1)
-        outline_matrix = np.where(outline_matrix==self.outside_colour, 0, outline_matrix)
-        outline_matrix = np.where(outline_matrix==self.inside_colour, 1, outline_matrix)
-
-        # Interpolate the two arrays to get the grad-cam scores of the outline
-        result = np.multiply(grad_matrix, outline_matrix[:, :, 1])
-
-        # Find the sum of all the activations within grad_matrix and result
-        total = np.sum(grad_matrix)
-        total_outline = np.sum(result)
-
-        output = (total_outline/total)*100
-
-        return output
-
-'''
 
 """
 

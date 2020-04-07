@@ -6,8 +6,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import tensorflow as tf
+from abc import ABC, abstractmethod
 
-class empty():
+class Algo(ABC):
+    def pass_through(self, data):
+        pass
+
+    def get_input(self):
+        pass
+
+
+class empty(Algo):
     def __init__(self, name="None"):
         self.name = name
         return
@@ -19,7 +28,7 @@ class empty():
         return ["Matrix"]
 
 
-class gradient_shap():
+class gradient_shap(Algo):
 
     name = "shap"
 
@@ -49,9 +58,10 @@ class gradient_shap():
 
     def pass_through(self, data):
 
-        image = data[0]
+        image = np.array([data[0]])
         label = data[1]
 
+        print(image)
         shap_value = self.e.shap_values(image)
 
         shap_value = self.shap_metric_ready(shap_value, label)
@@ -72,7 +82,7 @@ class gradient_shap():
         """Returns the names of the data types the algorithm needs"""
         return ["Input_Image", "Label"]
 
-class grad_cam:
+class grad_cam(Algo):
 
     def __init__(self, model, output_size, matrix_path="", img_path=""):
         self.model = model
@@ -112,7 +122,7 @@ class grad_cam:
 
         # Get the score for target class
         with tf.GradientTape() as tape:
-            conv_outputs, predictions = self.model(np.array([image]))
+            conv_outputs, predictions = self.model(image)
             loss = predictions[:, label]
 
         # Extract filters and gradients

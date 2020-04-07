@@ -6,10 +6,11 @@ from keras.preprocessing.image import load_img, img_to_array
 import pandas as pd
 import pathlib
 import natsort
+from abc import ABC, abstractmethod
 
 """
 
-    Input classes to take in data
+    Input_Loader classes to take in data
         Constructor data
             Containers come as a list of container inheritted classes
         Expected Methods:
@@ -19,7 +20,17 @@ import natsort
 
 """
 
-class Sorter:
+class Input_Loader(ABC):
+    def has_next(self):
+        pass
+
+    def get_next(self):
+        pass
+
+    def get_id(self):
+        pass
+
+class Sorter(Input_Loader):
     """Given a list of filenames, find the numerical value for each filepath and make sure they match up"""
 
     def __init__(self, containers, id_index=0):
@@ -67,7 +78,8 @@ class Sorter:
                 self.containers[match].increment()
 
 
-class Linear_Loader():
+class Linear_Loader(Input_Loader):
+    """Class for loading only one data type"""
 
     def __init__(self, container):
         self.c = container
@@ -186,7 +198,7 @@ class Input_Image(Container):
         self.name= "Input_Image"
 
     def load(self):
-        image = load_input_image(self.fp[self.counter], target_size=(225, 300))
+        image = load_input_image(self.fp[self.counter], target_size=self.input_size)
         self.counter = self.counter + 1
         return image
 
@@ -220,6 +232,9 @@ class Label(Container):
         l = self.labels[self.counter]
         self.counter = self.counter + 1
         return l
+
+    def sort(self):
+        self.fp = self.fp.sort
 
 """
 

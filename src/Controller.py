@@ -8,6 +8,9 @@ import EXP.src.Algorithm as Algorithm
 import EXP.src.Input as Input
 import EXP.src.Metrics as Metrics
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 
 """
 
@@ -65,8 +68,10 @@ def pipeline(input, algos, metrics, model=False):
                 # Process the default output (Correct, Score, Predicted, Labelled)
                 current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
 
+            # Get the input names for this algorithm
             param = a.get_input()
             input_data = []
+            # Sort through the dictionary of data loaded in and retreive the requested input
             for p in param:
                 input_data.append(data[p])
 
@@ -84,6 +89,8 @@ def pipeline(input, algos, metrics, model=False):
 '''
 
     Plotting of data
+    
+    These methods can be called to plot data in particular ways
 
 '''
 
@@ -92,6 +99,8 @@ import matplotlib.pyplot as plt
 
 
 def histogram(results, save_path, metric_index):
+    """Histograms a specific metric in a dataframe"""
+
     correct = results.loc[results['Correct'] == True].iloc[:, metric_index]
     incorrect = results.loc[results['Correct'] == False].iloc[:, metric_index]
 
@@ -104,6 +113,8 @@ def histogram(results, save_path, metric_index):
 
 
 def scatterplot(results, save_path, metric_index, y_name="True Class Score", x="", y=""):
+    """Creates a scatterplot for a metric against a specified data series, defaults to correct class score"""
+
     ax = sns.scatterplot(x=results.iloc[:, metric_index], y=y_name, hue="Correct", style="Correct", data=results)
     if x != "":
         ax.set(xlabel=x)
@@ -113,6 +124,94 @@ def scatterplot(results, save_path, metric_index, y_name="True Class Score", x="
     plt.savefig(save_path + "_" + y_name + "_scatter.png")
 
     plt.clf()
+
+def scatterplot_difference_algorithms(dataframe1, dataframe2, metric_name, save_path):
+    """This scatterplot shows the difference in the one metric between two dataframes"""
+    m1 = dataframe1[metric_name]
+    m2 = dataframe2[metric_name]
+
+    sns.scatterplot(x=dataframe1[metric_name], y=dataframe2[metric_name], hue="Correct", style="Correct", data=dataframe1)
+    plt.xlabel(dataframe1.name)
+    plt.ylabel(dataframe2.name)
+    plt.title("Comparison of Algorithms for " + metric_name)
+
+    plt.savefig(save_path +  metric_name + "_algo_scatter.png")
+    plt.clf()
+
+def scatterplot_difference_confidence(dataframe, save_path, metric_name):
+    """Creates a scatterplot for the difference in incorrect between correct and incorrect classification"""
+
+    # Drop all Correct predictions
+    df = dataframe[dataframe["Correct"]== False]
+
+    # Retreive the class scores for predicted and labelled
+    true_class_scores = df["True Class Score"]
+    pred_class_scores = df["Predicted Class Score"]
+
+    # Find the difference between the two
+    differences = pred_class_scores.subtract(true_class_scores)
+
+
+    # Plot the data against the specified metrix
+    sns.scatterplot(x=dataframe[metric_name], y=differences)
+    plt.title("Difference in confidence for incorrect classifications: " + metric_name)
+    plt.xlabel(metric_name)
+    plt.ylabel("Predicted Class Scores - Labelled Class Scores")
+
+    plt.savefig(save_path + metric_name + "_confidence_diff_scatter.png")
+    plt.clf()
+
+"""
+
+    Sanity Checks
+
+
+"""
+import cv2
+
+def visualization_of_sorted_metric(dataframe, img_paths, metric_name, ascending=True, output=os.getcwd()):
+    """Sanity check to compile a video of an algorithms visualizations by a metric sort
+
+    REQUIREMENTS:
+        Visualization algorithm images must be the same name as corresponding ID
+
+    PARAMETERS:
+        dataframe: A single pandas dataframe including the ID and metric values
+        img_paths: A list of absolute paths to the algorithm visualization images
+        metric_name: The name of the Series in dataframe that lists the metric values
+
+    """
+
+    # Strip the dataframe to only the ID and the metric
+    # Then sort the dataframe by the metric and retreive the names as a list
+    df = dataframe[['ID', metric_name]]
+    df.sort_values(by=[metric_name], inplace=True, ascending=ascending)
+    names = df['ID'].values.tolist()
+
+    images = []
+    for n in names:
+
+        # Find the corresponding image for the name, load it and append it to the images list
+        for i, p in enumerate(img_paths):
+
+            if n in p:
+                logging.info(p + "  ===   " + n)
+                img = cv2.imread(p)
+                height, width, layers = img.shape
+                size = (width, height)
+                images.append(img)
+                img_paths.pop(i)
+                continue
+
+        logging.info("ERROR: " + n + " no image")
+
+
+    out = cv2.VideoWriter(output + dataframe.name + '-visualization_of_' + metric_name + '.avi', cv2.VideoWriter_fourcc(*'DIVX'), 1, size)
+
+    for i in range(len(images)):
+        out.write(images[i])
+    out.release()
+
 
 
 """
@@ -180,7 +279,7 @@ def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
                  Input.Matrix(tags[1]),
                  Input.Segmentation(tags[2], output_size),
                  Input.Label(tags[3], "benign", "image")]
-    input = Input.Sorter(container, 3)
+    input = Input.Sorter(container, 0)
 
     #       ALGO
     algos = [Algorithm.empty("shap_preloaded")]
