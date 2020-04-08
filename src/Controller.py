@@ -21,18 +21,16 @@ logging.basicConfig(level=logging.INFO)
 """
 
 
-def pipeline(input, algos, metrics, model=False):
-    #       Setup pandas dataframe : Results
-    if not model:
-        temp = ['ID']
-    else:
-        temp = ['ID', 'Correct', 'True Class', 'True Class Score', 'Predicted Class', 'Predicted Class Score']
+def pipeline(input, algos, metrics, model):
+    #       Setup pandas dataframe columns
+    temp = ['ID', 'Correct', 'True Class', 'True Class Score', 'Predicted Class', 'Predicted Class Score']
 
+    # Add all the metrics as columns
     for m in metrics:
         temp.append(m.name)
     x = pd.DataFrame(columns=temp)
 
-    # Create n copies of the x pandas Dataframe where n is the number of algos
+    # Create a copy of the pandas Dataframe for each algorithm inside the results list
     results = []
     for a in algos:
         df = x
@@ -42,10 +40,11 @@ def pipeline(input, algos, metrics, model=False):
     data_counter = 0
     print("Starting Pipeline Loop")
 
-    # Load all the data through the interpretability algorithm and then metrics
+    # Load all the data through the interpretability algorithm and then metrics for each data point
+    # whilst there is data from the Input Loader still to be retreived
     while input.has_next():
 
-        # load data
+        # Retreive the loaded data
         data, id = input.get_next()
         print(str(data_counter) + ":\t" + id)
 
@@ -62,11 +61,9 @@ def pipeline(input, algos, metrics, model=False):
                     correct = False
                 return [id, correct, label, label_score, pred_label, predicted_score]
 
-            if not model:
-                current_row = [id]
-            else:
-                # Process the default output (Correct, Score, Predicted, Labelled)
-                current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
+
+            # Process the meta data for the datapoint (Correct, Score, Predicted, Labelled)
+            current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
 
             # Get the input names for this algorithm
             param = a.get_input()

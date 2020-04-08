@@ -61,7 +61,6 @@ class gradient_shap(Algo):
         image = np.array([data[0]])
         label = data[1]
 
-        print(image)
         shap_value = self.e.shap_values(image)
 
         shap_value = self.shap_metric_ready(shap_value, label)
@@ -84,13 +83,28 @@ class gradient_shap(Algo):
 
 class grad_cam(Algo):
 
-    def __init__(self, model, output_size, matrix_path="", img_path=""):
-        self.model = model
+    def __init__(self, model, output_size, layer_name, matrix_path="", img_path=""):
+        self.model = self.create_gradcam_model(model, layer_name)
         self.output_size = output_size
         self.matrix_path = matrix_path
         self.img_path = img_path
         self.image_counter = 0
         self.matrix_counter = 0
+
+    def create_gradcam_model(self, model, LAYER_NAMES):
+
+        # Find all the layer outputs from the layers specified in the LAYER_NAMES list
+        outputs = [
+            layer.output for layer in model.layers
+            if layer.name in LAYER_NAMES
+        ]
+
+        # Add the model's output layer to the list of outputs
+        outputs.append(model.output)
+
+        # Create and return the model
+        grad_model = tf.keras.models.Model(model.inputs, outputs=outputs)
+        return grad_model
 
     # method to return a grad-cam score that has been unaltered for a given image and class on a model
     def normalise(self, grad_matrix):
@@ -117,12 +131,12 @@ class grad_cam(Algo):
         return output_image
 
     def pass_through(self, data):
-        image = data[0]
+        img = data[0]
         label = data[1]
 
         # Get the score for target class
         with tf.GradientTape() as tape:
-            conv_outputs, predictions = self.model(image)
+            conv_outputs, predictions = self.model(np.array([img]))
             loss = predictions[:, label]
 
         # Extract filters and gradients

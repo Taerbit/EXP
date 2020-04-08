@@ -49,9 +49,7 @@ def test_input_image():
 
     x = EXP.Input.load_input_image("test_data\\input0.jpg", input_size)
 
-    assert np.array_equals(img, x)
-
-test_input_image()
+    assert np.array_equal(img, x)
 
 
 '''

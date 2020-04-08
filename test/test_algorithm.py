@@ -9,7 +9,7 @@ def set_up():
     all_imgs = EXP.Input.get_all_paths("test_data\\Lesions\\Lesions\\", "*.jpg")
     background = []
     for i in range(len(all_imgs)):
-        background.append(np.array([EXP.Input.load_input_image(all_imgs[i], (255, 300))]))
+        background.append(EXP.Input.load_input_image(all_imgs[i], (255, 300)))#np.array([EXP.Input.load_input_image(all_imgs[i], (255, 300))]))
 
     return EXP.Algorithm.gradient_shap(background, model, [1022, 767])
 
@@ -25,7 +25,7 @@ def test_gradient_shap():
             EXP.Input.load_input_image("test_data\\Lesions\\Lesions\\ISIC_0000000.jpg", (225, 300)),
             0
         ]
-    print(data[0])
+
     x = np.load("test_data\\shap_0_sorted.npy")
 
     sorted_gs = gs.pass_through(data)
@@ -43,7 +43,7 @@ def test_shap_metric_ready():
 
 def test_grad_cam():
     model = tf.keras.models.load_model("test_data\\200310_DenseNet201_001.h5", compile=False)
-    gradcam = EXP.Algorithm.grad_cam(model, [1022, 767])
+    gradcam = EXP.Algorithm.grad_cam(model, [1022, 767], ["conv5_block32_2_conv"])
 
     assert gradcam.get_input() == ["Input_Image", "Label"]
 
@@ -52,6 +52,4 @@ def test_grad_cam():
     x = np.load("test_data\\gradcam_0.npy")
 
     g = gradcam.pass_through([img, 0])
-    assert g == x
-
-test_gradient_shap()
+    assert np.array_equal(g, x)
