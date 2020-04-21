@@ -7,9 +7,10 @@ import matplotlib.pyplot as plt
 import cv2
 import tensorflow as tf
 from abc import ABC, abstractmethod
+import keras.backend as K
 
 class Algo(ABC):
-    def pass_through(self, data):
+    def pass_through(self, data, id):
         pass
 
     def get_input(self):
@@ -21,19 +22,20 @@ class empty(Algo):
         self.name = name
         return
 
-    def pass_through(self, data):
-        return data[0]
+    def pass_through(self, data, id):
+        return
 
     def get_input(self):
-        return ["Matrix"]
+        return ["Input_Image"]
 
 
 class gradient_shap(Algo):
 
-    name = "shap"
+    name = "gradient_shap"
 
     def __init__(self, background, model, output_size, matrix_path="", img_path=""):
-        self.e = shap.GradientExplainer(model, np.array(background))
+
+        self.e = shap.KernelExplainer(model, background)#np.array(background))
         self.img_path = img_path
         self.matrix_path = matrix_path
         self.image_counter = 0
@@ -56,32 +58,40 @@ class gradient_shap(Algo):
 
         return metric_ready
 
-    def pass_through(self, data):
+    def visualization(self, matrix, image):
+        shap.image_plot(np.array([matrix]), np.array([image]), show=False)
+        plt.savefig(self.img_path + str(self.image_counter) + '.png')
+        self.image_counter = self.image_counter + 1
+        plt.clf()
 
-        image = np.array([data[0]])
+    def pass_through(self, data, id):
+
+        image = data[0]#np.array([data[0]])
         label = data[1]
 
-        shap_value = self.e.shap_values(image)
+        shap_value = self.e.shap_values(np.array([image]))
+        #shap_value = shap_value
 
-        shap_value = self.shap_metric_ready(shap_value, label)
+        # Reshape the shap value into the output size
+        sorted_shap_value = self.shap_metric_ready(shap_value, label)
 
         if self.img_path != "":
-            shap.image_plot(np.array([shap_value]), -np.array([image]), show=False)
-            plt.savefig(self.img_path + str(self.image_counter) + '.png')
-            self.img_path = self.img_path + 1
-            plt.clf()
+            self.visualization(shap_value, image)
 
         if self.matrix_path != "":
             np.save(self.matrix_path + str(self.matrix_counter) + ".npy", shap_value)
+            np.save(self.matrix_path + str(self.matrix_counter) + "_sorted.npy", sorted_shap_value)
             self.matrix_counter = self.matrix_counter + 1
 
-        return shap_value
+        return sorted_shap_value
 
     def get_input(self):
         """Returns the names of the data types the algorithm needs"""
         return ["Input_Image", "Label"]
 
 class grad_cam(Algo):
+
+    name = "grad_cam"
 
     def __init__(self, model, output_size, layer_name, matrix_path="", img_path=""):
         self.model = self.create_gradcam_model(model, layer_name)
@@ -118,21 +128,25 @@ class grad_cam(Algo):
                 str(str(size1.shape) + " != " + str(size2.shape)))
             return False
 
-    def grad_cam_coloured(self, grad_matrix, img):
+    def visualization(self, cam, image, id):
 
-        img = cv2.resize(img, (len(grad_matrix[0]), len(grad_matrix)))
-        output_image = 0
+        heatmap = (cam - cam.min()) / (cam.max() - cam.min())
+        heatmap = cv2.resize(heatmap, (300, 225))
 
-        if self.validate_sizes(grad_matrix, img):
-            cam = cv2.applyColorMap(np.uint8(255 * self.normalise(grad_matrix)), cv2.COLORMAP_JET)
-            output_image = cv2.addWeighted(cv2.cvtColor(img.astype('uint8'), cv2.COLOR_RGB2BGR), 0.5,
-                                           cam.astype('uint8'), 1, 0)
+        heatmap = (heatmap * 255)
+        plt.figure
+        plt.imshow(image.astype('uint8'))
+        plt.imshow((heatmap), cmap='jet', alpha=0.6)
 
-        return output_image
+        o = self.img_path + id + '.png'
+        plt.savefig(o)
 
-    def pass_through(self, data):
+        plt.clf()
+
+    def pass_through(self, data, id):
         img = data[0]
         label = data[1]
+        original_image = data[2]
 
         # Get the score for target class
         with tf.GradientTape() as tape:
@@ -153,25 +167,23 @@ class grad_cam(Algo):
             cam += w * output[:, :, index]
 
         # Heatmap visualization
-        cam = cv2.resize(cam.numpy(), (self.output_size[0], self.output_size[1]))
-        cam = np.maximum(cam, 0)  # ReLu
+        cam = np.maximum(cam, 0)
+
+        sorted_cam = cv2.resize(cam, (self.output_size[0], self.output_size[1]))
+        #sorted_cam = np.maximum(cam, 0)  # ReLu
 
         if self.img_path != "":
-            overlapped = self.grad_cam_coloured(cam, image)
-            plt.imshow(overlapped, show=False)
-            plt.savefig(self.img_path + str(self.image_counter) + '.png')
-            self.img_path = self.img_path + 1
-            plt.clf()
+            self.visualization(cam, original_image, id)
 
         if self.matrix_path != "":
-            np.save(self.matrix_path + str(self.matrix_counter) + ".npy", cam)
-            self.matrix_counter = self.matrix_counter + 1
+            np.save(self.matrix_path + id + ".npy", cam)  # Save the raw cam output with dimensions of the last conv layer
+            np.save(self.matrix_path + id + "_sorted.npy", sorted_cam) # Save
 
-        return cam
+        return sorted_cam
 
     def get_input(self):
         """Returns the names of the data types the algorithm needs"""
-        return ["Input_Image", "Label"]
+        return ["Input_Image", "Label", "Original Image"]
 """
 
     Finn Torbet - 15/13/2020

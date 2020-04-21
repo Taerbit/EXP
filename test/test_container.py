@@ -3,7 +3,8 @@ import cv2
 import numpy as np
 
 output_size = (128, 128)
-input_size = (255, 300)
+x = 300
+y = 255
 
 
 def check_images_match(p1, p2):
@@ -43,14 +44,20 @@ def test_segmentation_loading():
     assert check_images_match(s.load(), img[2])
 
 def test_input_image():
-    i = EXP.Input.Input_Image(["test_data\\", ".jpg"], input_size)
+    i = EXP.Input.Input_Image(["test_data\\", ".jpg"], x, y)
 
     img = i.load()
 
-    x = EXP.Input.load_input_image("test_data\\input0.jpg", input_size)
+    test = EXP.Input.load_input_image("test_data\\input0.jpg", x, y)
 
-    assert np.array_equal(img, x)
+    assert np.array_equal(img, test)
 
+def test_labels():
+    l = EXP.Input.Label(["test_data\\", ".csv"], "column3", "column1")
+
+    assert l.load() == 1.3
+    assert l.load() == 2.3
+    assert l.load() == 3.3
 
 '''
 

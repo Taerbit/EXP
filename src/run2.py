@@ -3,7 +3,7 @@ import tensorflow as tf
 
 # Run pre-loaded pipelines
 
-model = tf.keras.models.load_model("../test/test_data/Dual Classifier.h5", compile=False)
+model = tf.keras.models.load_model("C:\\Users\\finnt\\Downloads\\200310_DenseNet201_001.h5", compile=False)
 
 image_tags = ["C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\Lesions\\", ".jpg", "ISIC_", "_downsampled", 0]
 seg_tags = ["C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\Segmentations\\", ".png", "ISIC_", "_segmentation", 0]

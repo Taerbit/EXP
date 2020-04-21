@@ -2,11 +2,12 @@ import re
 from abc import ABC, abstractmethod
 import cv2
 import numpy as np
-from keras.preprocessing.image import load_img, img_to_array
+import tensorflow as tf
 import pandas as pd
 import pathlib
 import natsort
 from abc import ABC, abstractmethod
+from keras.preprocessing import image
 
 """
 
@@ -39,11 +40,9 @@ class Sorter(Input_Loader):
 
     def load_frame(self):
         load = {}
-        identifier = self.containers[self.id_index]
-        id = str(identifier.fp[identifier.counter])
         for c in self.containers:
             load[c.name] = c.load()
-        return load, id
+        return load
 
     def has_next(self):
         for c in self.containers:
@@ -73,7 +72,8 @@ class Sorter(Input_Loader):
             match = self.match(self.get_all_numbers())
 
             if match == -1:
-                return self.load_frame()
+                id = self.containers[self.id_index].get_id()
+                return self.load_frame(), id
             else:
                 self.containers[match].increment()
 
@@ -113,6 +113,7 @@ def get_all_paths(src, file_extension):
     all_paths = natsort.natsorted(all_paths)
     return all_paths
 
+#IMPROVEMENT    Make fp a stack or queue to remove counter variable
 
 class Container(ABC):
 
@@ -166,6 +167,15 @@ class Container(ABC):
         else:
             return True
 
+
+    def get_id(self):
+        id = self.fp[self.counter]
+        id = id.replace(str(self.tags[0]), "")
+        id = id.replace(str(self.tags[1]), "")
+        return id
+
+
+
 class Segmentation(Container):
 
     def __init__(self, tags, output_size, ordered=True, children=[]):
@@ -179,6 +189,7 @@ class Segmentation(Container):
         self.counter = self.counter + 1
         return image
 
+'''
 def load_input_image(src, target_size):
     image = load_img(src, target_size=target_size)
     image = img_to_array(image)
@@ -188,19 +199,44 @@ def load_input_image(src, target_size):
 
     image = normalize(image)
     return image
+'''
 
+def load_input_image(src, x, y):
+    image = tf.io.read_file(src)
+    image = tf.io.decode_jpeg(image, channels=3)
+    image = tf.dtypes.cast(image, tf.float32)
+    image /= 127.5 - 1  # normalize to [-1,1]
+    image = tf.image.resize_with_pad(image, y, x)
+
+    return image
 
 class Input_Image(Container):
 
-    def __init__(self, tags, input_size, ordered=True, children=[]):
+    def __init__(self, tags, size, ordered=True, children=[]):
         super(Input_Image, self).__init__(tags, ordered, children)
-        self.input_size = input_size
+        self.size = size
         self.name= "Input_Image"
 
     def load(self):
-        image = load_input_image(self.fp[self.counter], target_size=self.input_size)
+        image = load_input_image(self.fp[self.counter], self.size[0], self.size[1])
+        #image = np.expand_dims(image, 0)
         self.counter = self.counter + 1
         return image
+
+
+
+class Original_Image(Container):
+
+    def __init__(self, tags, size, ordered=True, children=[]):
+        super(Original_Image, self).__init__(tags, ordered, children)
+        self.size = size
+        self.name= "Original Image"
+
+    def load(self):
+        i = image.load_img(self.fp[self.counter], target_size=(self.size[1], self.size[0]))
+        i = image.img_to_array(i)
+        self.counter = self.counter + 1
+        return i
 
 class Matrix(Container):
     """Load in metric ready, precompiled matrices from a previous algorithms generation"""
@@ -214,22 +250,35 @@ class Matrix(Container):
         return matrix
 
 class Label(Container):
+    """Container class to read a csv for a label
+        fp is the row ID
+        labels is the actual label value"""
 
-    def __init__(self, tag, label_header, name_header, ordered=True, children=[]):
+    def __init__(self, tag, data_header, name_header, ordered=True, children=[]):
+
         super(Label, self).__init__(tag, ordered, children)
 
-        # Load information now
+        # Load information from csv
         data = pd.read_csv(self.fp[0])
         self.fp = data[name_header]
         self.fp = self.fp.values.tolist()
 
-        self.labels = data[label_header]
+        if type(data_header) == list:
+            self.multi = True
+        else:
+            self.multi = False
+
+        self.labels = data[data_header]
         self.labels = self.labels.values.tolist()
 
         self.name = "Label"
 
     def load(self):
-        l = self.labels[self.counter]
+        if self.multi:
+            l = np.argmax(self.labels[self.counter])
+        else:
+            l = self.labels[self.counter]
+
         self.counter = self.counter + 1
         return l
 

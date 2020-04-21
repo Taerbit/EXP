@@ -1,5 +1,6 @@
 #       CONTROLLER
 import os
+import copy
 
 import numpy as np
 import pandas as pd
@@ -37,6 +38,9 @@ def pipeline(input, algos, metrics, model):
         df.name = a.name
         results.append(df)
 
+    # Remove the temp variables to set up the dataframes
+    del x, m, a, df
+
     data_counter = 0
     print("Starting Pipeline Loop")
 
@@ -61,7 +65,6 @@ def pipeline(input, algos, metrics, model):
                     correct = False
                 return [id, correct, label, label_score, pred_label, predicted_score]
 
-
             # Process the meta data for the datapoint (Correct, Score, Predicted, Labelled)
             current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
 
@@ -72,7 +75,7 @@ def pipeline(input, algos, metrics, model):
             for p in param:
                 input_data.append(data[p])
 
-            matrix = a.pass_through(input_data)  # Send image and label away
+            matrix = a.pass_through(input_data, id)  # Send image and label away
 
             # Process algorithm result through all metrics
             for y, m in enumerate(metrics):
@@ -127,7 +130,7 @@ def scatterplot_difference_algorithms(dataframe1, dataframe2, metric_name, save_
     m1 = dataframe1[metric_name]
     m2 = dataframe2[metric_name]
 
-    sns.scatterplot(x=dataframe1[metric_name], y=dataframe2[metric_name], hue="Correct", style="Correct", data=dataframe1)
+    sns.scatterplot(x=m1, y=m2, hue="Correct", style="Correct", data=dataframe1)
     plt.xlabel(dataframe1.name)
     plt.ylabel(dataframe2.name)
     plt.title("Comparison of Algorithms for " + metric_name)
@@ -155,7 +158,7 @@ def scatterplot_difference_confidence(dataframe, save_path, metric_name):
     plt.xlabel(metric_name)
     plt.ylabel("Predicted Class Scores - Labelled Class Scores")
 
-    plt.savefig(save_path + metric_name + "_confidence_diff_scatter.png")
+    plt.savefig(save_path + "_confidence_diff_scatter.png")
     plt.clf()
 
 """
@@ -212,7 +215,7 @@ def visualization_of_sorted_metric(dataframe, img_paths, metric_name, ascending=
 
 
 """
-    Hons Pipeline  
+    hons Pipeline  
         The Hons pipeline is the given pipeline for comparing grad_cam and shap against metrics Average and
         N. It takes a specified tag 2D array, model and relevant model parameters.
 
@@ -222,42 +225,68 @@ def visualization_of_sorted_metric(dataframe, img_paths, metric_name, ascending=
 """
 
 # e.g. filepath = [[list of image paths], [path to csv, target column], [list of segmentation paths]]
-def Hons(model, filepaths, tags, input_size=(225, 300), output_size=(1022, 767),
+def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767),
          output=os.getcwd(), background=[], inside_colour=255,
          save_matrices=False, save_imgs=False, save_csv=False):
+
     #       INPUT
     # IMPROVE: Validate filepath[n] = expected_input_type[n]
-    containers = [Input.Input_Image(filepaths[0], tags[0], input_size),
-                  Input.Label(filepaths[1][0], tags[1], filepaths[1][1]),
-                  Input.Segmentation(filepaths[2], tags[2], output_size)]
+    containers = [Input.Input_Image(tags[0], input_size),
+                  Input.Segmentation(tags[1], output_size),
+                  Input.Label(tags[2], "benign", "image"),
+                  Input.Original_Image(tags[0], input_size, ordered=False)]#["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC", "UNK"], "image")]
     input = Input.Sorter(containers)
 
     #       ALGO
+    '''
     if background == []:
-        l = Input.Linear_Loader(filepaths[0])
+        l = Input.Linear_Loader(copy.deepcopy(containers[0]))
         while l.has_next():
             background.append(np.array([l.get_next()]))
+    '''
 
-    algos = [Algorithm.gradient_shap(background, model, output_size)]
+    if save_imgs:
+        img_path = output
+    else:
+        img_path = ""
+    if save_matrices:
+        matrix_path = output
+    else:
+        matrix_path = ""
+
+    algos = [
+        Algorithm.grad_cam(model, output_size, layer_name, img_path=img_path, matrix_path=matrix_path)
+        #Algorithm.gradient_shap(background, model, output_size)
+    ]
 
     #       METRICS
     metrics = [Metrics.Average(inside_colour),
                Metrics.N(inside_colour, 1),
                Metrics.N(inside_colour, 2),
-               Metrics.N(inside_colour, 3)]
+               Metrics.N(inside_colour, 3),
+               Metrics.N(inside_colour, 4)]
 
     data = pipeline(input, algos, metrics, model)
 
-    for i, result in enumerate(data):
+    # Visualize Results from pipeline
+    for result in data:
+
+        # Process the plots per metrics
         for m in range(len(metrics)):
-            histogram(result, output + "_" + str(i), m + 6)
-            scatterplot(result, output + "_" + str(i), m + 6)
-            scatterplot(result, output + "_" + str(i), m + 6, y_name="Average")
+            o = output + result.name + "_" + metrics[m].name
+            print("\t\n" + result.columns[m+6])
+            histogram(result, o, m + 6)
+            scatterplot(result, o, m + 6)
+            scatterplot(result, o, m + 6, y_name="Average")
+            scatterplot(result, o, m + 6, y_name="Predicted Class Score")
+            scatterplot_difference_confidence(result, o, metrics[m].name)
 
         if save_csv:
-            print("Saving...\tresults.csv for " + str(i))
-            result.to_csv(output + "" + str(i) + ".csv")
+            print("\nSaving...\tresults.csv for " + result.name)
+            result.to_csv(output + "" + result.name + ".csv")
 
+    #for m in metrics:
+        #scatterplot_difference_algorithms(data[0], data[1], m.name, output)
 
 """
 
@@ -272,7 +301,7 @@ def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
                     save_matrices=False, save_imgs=False, save_csv=False):
     #       INPUT
 
-    container = [Input.Input_Image(tags[0], input_size),
+    container = [Input.Input_Image(tags[0], input_size[0], input_size[1]),
                  Input.Matrix(tags[1]),
                  Input.Segmentation(tags[2], output_size),
                  Input.Label(tags[3], "benign", "image")]
@@ -282,11 +311,12 @@ def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
     algos = [Algorithm.empty("shap_preloaded")]
 
     #       METRICS
-    metrics = [Metrics.Average(inside_colour),
+    metrics = [Metrics.Average(inside_colour)]
+    '''
                Metrics.N(inside_colour, 1),
                Metrics.N(inside_colour, 2),
                Metrics.N(inside_colour, 3),
-               Metrics.N(inside_colour, 4)]
+               Metrics.N(inside_colour, 4)]'''
 
     data = pipeline(input, algos, metrics, model)
 
