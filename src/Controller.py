@@ -107,7 +107,7 @@ def histogram(results, save_path, metric_index):
     sns.distplot(correct, color='g', kde=False)
     sns.distplot(incorrect, color='r', kde=False)
     print("Saving...\tHistogram")
-    plt.savefig(save_path + "_hist.png")
+    plt.savefig(save_path + results.columns[metric_index] + "_hist.png")
 
     plt.clf()
 
@@ -121,7 +121,24 @@ def scatterplot(results, save_path, metric_index, y_name="True Class Score", x="
     if y != "":
         ax.set(ylabel=y)
     print("Saving...\t" + y_name + " Scatter")
-    plt.savefig(save_path + "_" + y_name + "_scatter.png")
+
+    plt.savefig(save_path + "_" + results.columns[metric_index] + "_" + y_name + "_scatter.png")
+
+    plt.clf()
+
+def boxplot(results, save_path, metric_index, x="", y=""):
+    """Creates a scatterplot for a metric against a specified data series, defaults to correct class score"""
+
+    ax = sns.boxplot(x=results.iloc[:, metric_index], hue="Correct", data=results)
+
+    y_name = results.columns[metric_index]
+
+    if x != "":
+        ax.set(xlabel=x)
+    if y != "":
+        ax.set(ylabel=y)
+    print("Saving...\t" + y_name + " Boxplot")
+    plt.savefig(save_path + "_" + results.columns[metric_index] + "_" + y_name + "_box.png")
 
     plt.clf()
 
@@ -135,7 +152,7 @@ def scatterplot_difference_algorithms(dataframe1, dataframe2, metric_name, save_
     plt.ylabel(dataframe2.name)
     plt.title("Comparison of Algorithms for " + metric_name)
 
-    plt.savefig(save_path +  metric_name + "_algo_scatter.png")
+    plt.savefig(save_path + metric_name + "_algo_scatter.png")
     plt.clf()
 
 def scatterplot_difference_confidence(dataframe, save_path, metric_name):
@@ -158,7 +175,7 @@ def scatterplot_difference_confidence(dataframe, save_path, metric_name):
     plt.xlabel(metric_name)
     plt.ylabel("Predicted Class Scores - Labelled Class Scores")
 
-    plt.savefig(save_path + "_confidence_diff_scatter.png")
+    plt.savefig(save_path + "_" + metric_name + "_confidence_diff_scatter.png")
     plt.clf()
 
 """
@@ -212,8 +229,6 @@ def visualization_of_sorted_metric(dataframe, img_paths, metric_name, ascending=
         out.write(images[i])
     out.release()
 
-
-
 """
     hons Pipeline  
         The Hons pipeline is the given pipeline for comparing grad_cam and shap against metrics Average and
@@ -234,16 +249,18 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
     containers = [Input.Input_Image(tags[0], input_size),
                   Input.Segmentation(tags[1], output_size),
                   Input.Label(tags[2], "benign", "image"),
-                  Input.Original_Image(tags[0], input_size, ordered=False)]#["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC", "UNK"], "image")]
+                  Input.Original_Image(tags[0], input_size, ordered=False),
+                  Input.Numbered(tags[3])
+                  ]
     input = Input.Sorter(containers)
 
     #       ALGO
-    '''
+
     if background == []:
         l = Input.Linear_Loader(copy.deepcopy(containers[0]))
         while l.has_next():
             background.append(np.array([l.get_next()]))
-    '''
+
 
     if save_imgs:
         img_path = output
@@ -255,8 +272,8 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
         matrix_path = ""
 
     algos = [
-        Algorithm.grad_cam(model, output_size, layer_name, img_path=img_path, matrix_path=matrix_path)
-        #Algorithm.gradient_shap(background, model, output_size)
+        #Algorithm.grad_cam(model, output_size, layer_name, img_path=img_path, matrix_path=matrix_path)
+        Algorithm.gradient_shap(background, model, output_size, img_path=img_path, matrix_path=matrix_path)
     ]
 
     #       METRICS
@@ -274,11 +291,11 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
         # Process the plots per metrics
         for m in range(len(metrics)):
             o = output + result.name + "_" + metrics[m].name
-            print("\t\n" + result.columns[m+6])
-            histogram(result, o, m + 6)
-            scatterplot(result, o, m + 6)
-            scatterplot(result, o, m + 6, y_name="Average")
-            scatterplot(result, o, m + 6, y_name="Predicted Class Score")
+            print("\t\n" + result.columns[m+7])
+            histogram(result, o, m + 7)
+            scatterplot(result, o, m + 7)
+            scatterplot(result, o, m + 7, y_name="Average")
+            scatterplot(result, o, m + 7, y_name="Predicted Class Score")
             scatterplot_difference_confidence(result, o, metrics[m].name)
 
         if save_csv:

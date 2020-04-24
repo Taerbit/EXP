@@ -174,6 +174,36 @@ class Container(ABC):
         id = id.replace(str(self.tags[1]), "")
         return id
 
+class Numbered():
+    """A class to hold a list of numbers that the sorter must select from"""
+
+    def __init__(self, numbers):
+        self.counter = 0
+        self.fp = numbers
+        self.ordered = True
+        self.children = False
+        self.name = 'empty'
+
+    def get_number(self):
+        n = self.fp[self.counter]
+        return int(n)
+
+    def increment(self):
+        self.counter = self.counter + 1
+        return self.data_remaining()
+
+    def load(self):
+        return None
+
+    def data_remaining(self):
+        """getter method asking if there is any data remaining.
+        Return True if there is data still to be retreived,
+        False if not"""
+
+        if self.counter == len(self.fp):
+            return False
+        else:
+            return True
 
 
 class Segmentation(Container):

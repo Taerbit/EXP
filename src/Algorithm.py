@@ -35,11 +35,10 @@ class gradient_shap(Algo):
 
     def __init__(self, background, model, output_size, matrix_path="", img_path=""):
 
-        self.e = shap.KernelExplainer(model, background)#np.array(background))
+        self.e = shap.GradientExplainer(model, background)#np.array(background))
         self.img_path = img_path
         self.matrix_path = matrix_path
         self.image_counter = 0
-        self.matrix_counter = 0
         self.output_size = output_size
 
     def shap_metric_ready(self, shap, label):
@@ -66,22 +65,20 @@ class gradient_shap(Algo):
 
     def pass_through(self, data, id):
 
-        image = data[0]#np.array([data[0]])
+        image = data[0]
         label = data[1]
 
         shap_value = self.e.shap_values(np.array([image]))
-        #shap_value = shap_value
 
         # Reshape the shap value into the output size
-        sorted_shap_value = self.shap_metric_ready(shap_value, label)
+        sorted_shap_value = self.shap_metric_ready(np.array(shap_value), label)
 
         if self.img_path != "":
-            self.visualization(shap_value, image)
+            self.visualization(shap_value[label], image)
 
         if self.matrix_path != "":
-            np.save(self.matrix_path + str(self.matrix_counter) + ".npy", shap_value)
-            np.save(self.matrix_path + str(self.matrix_counter) + "_sorted.npy", sorted_shap_value)
-            self.matrix_counter = self.matrix_counter + 1
+            np.save(self.matrix_path + id + ".npy", np.array(shap_value))
+            np.save(self.matrix_path + id + "_sorted.npy", sorted_shap_value)
 
         return sorted_shap_value
 
