@@ -23,10 +23,10 @@ class empty(Algo):
         return
 
     def pass_through(self, data, id):
-        return
+        return data[0]
 
     def get_input(self):
-        return ["Input_Image"]
+        return ["Matrix"]
 
 
 class gradient_shap(Algo):

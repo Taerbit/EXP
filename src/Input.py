@@ -193,12 +193,10 @@ class Numbered():
         return self.data_remaining()
 
     def load(self):
+        self.counter = self.counter + 1
         return None
 
     def data_remaining(self):
-        """getter method asking if there is any data remaining.
-        Return True if there is data still to be retreived,
-        False if not"""
 
         if self.counter == len(self.fp):
             return False
@@ -219,9 +217,9 @@ class Segmentation(Container):
         self.counter = self.counter + 1
         return image
 
-'''
-def load_input_image(src, target_size):
-    image = load_img(src, target_size=target_size)
+from keras.preprocessing.image import load_img, img_to_array
+def load_reg_image(src, x, y):
+    image = load_img(src, target_size=(x, y))
     image = img_to_array(image)
 
     def normalize(x):
@@ -229,7 +227,7 @@ def load_input_image(src, target_size):
 
     image = normalize(image)
     return image
-'''
+
 
 def load_input_image(src, x, y):
     image = tf.io.read_file(src)

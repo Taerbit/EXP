@@ -65,6 +65,7 @@ def pipeline(input, algos, metrics, model):
                     correct = False
                 return [id, correct, label, label_score, pred_label, predicted_score]
 
+
             # Process the meta data for the datapoint (Correct, Score, Predicted, Labelled)
             current_row = add_common_attributes(id, model, data["Input_Image"], data["Label"])
 
@@ -98,48 +99,54 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def histogram(results, save_path, metric_index):
+def histogram(results, save_path, metric_index, model):
     """Histograms a specific metric in a dataframe"""
 
-    correct = results.loc[results['Correct'] == True].iloc[:, metric_index]
-    incorrect = results.loc[results['Correct'] == False].iloc[:, metric_index]
+    correct = results.loc[results['Correct'] == True]
+    correct = correct[metric_index]
+    incorrect = results.loc[results['Correct'] == False]
+    incorrect = incorrect[metric_index]
 
-    sns.distplot(correct, color='g', kde=False)
-    sns.distplot(incorrect, color='r', kde=False)
-    print("Saving...\tHistogram")
-    plt.savefig(save_path + results.columns[metric_index] + "_hist.png")
+    ax = sns.distplot(correct, color="g", kde=False)
+    ax = sns.distplot(incorrect, color='r', kde=False)
+    ax.set(ylabel="Frequency")
+    ax.set(title=model + " - Distribution of " + metric_index)
+
+    plt.savefig(save_path + metric_index + "_hist.png")
 
     plt.clf()
 
 
-def scatterplot(results, save_path, metric_index, y_name="True Class Score", x="", y=""):
+def scatterplot(results, save_path, metric_name, model, y_name="True Class Score", desc=""):
     """Creates a scatterplot for a metric against a specified data series, defaults to correct class score"""
 
-    ax = sns.scatterplot(x=results.iloc[:, metric_index], y=y_name, hue="Correct", style="Correct", data=results)
-    if x != "":
-        ax.set(xlabel=x)
-    if y != "":
-        ax.set(ylabel=y)
+    sns.set_style("whitegrid")
+    ax = sns.scatterplot(x=results[metric_name], y=results[y_name], hue="Correct", style="Correct", data=results)
+
+    if desc == "":
+        desc = y_name
+    ax.set(title=model + " - " + metric_name + " vs " + desc)
+
+    ax.set(xlabel=metric_name)
+    ax.set(ylabel=y_name)
+
     print("Saving...\t" + y_name + " Scatter")
 
-    plt.savefig(save_path + "_" + results.columns[metric_index] + "_" + y_name + "_scatter.png")
+    plt.savefig(save_path + "_" + metric_name + "_" + y_name + "_scatter.png")
 
     plt.clf()
 
-def boxplot(results, save_path, metric_index, x="", y=""):
+def boxplot(results, save_path, metric_index, model, x_range=None, x_min=None):
     """Creates a scatterplot for a metric against a specified data series, defaults to correct class score"""
 
     ax = sns.boxplot(x=results.iloc[:, metric_index], hue="Correct", data=results)
 
     y_name = results.columns[metric_index]
 
-    if x != "":
-        ax.set(xlabel=x)
-    if y != "":
-        ax.set(ylabel=y)
+    ax.set(title=model + " - " + results.columns[metric_index] )
+    ax.set(xlim=(x_min, x_range))
     print("Saving...\t" + y_name + " Boxplot")
-    plt.savefig(save_path + "_" + results.columns[metric_index] + "_" + y_name + "_box.png")
-
+    plt.savefig(save_path + y_name + "_box.png")
     plt.clf()
 
 def scatterplot_difference_algorithms(dataframe1, dataframe2, metric_name, save_path):
@@ -155,7 +162,7 @@ def scatterplot_difference_algorithms(dataframe1, dataframe2, metric_name, save_
     plt.savefig(save_path + metric_name + "_algo_scatter.png")
     plt.clf()
 
-def scatterplot_difference_confidence(dataframe, save_path, metric_name):
+def scatterplot_difference_confidence(dataframe, save_path, metric_name, model):
     """Creates a scatterplot for the difference in incorrect between correct and incorrect classification"""
 
     # Drop all Correct predictions
@@ -171,11 +178,11 @@ def scatterplot_difference_confidence(dataframe, save_path, metric_name):
 
     # Plot the data against the specified metrix
     sns.scatterplot(x=dataframe[metric_name], y=differences)
-    plt.title("Difference in confidence for incorrect classifications: " + metric_name)
+    plt.title(model + " - Difference in confidence for incorrect classifications vs " + metric_name)
     plt.xlabel(metric_name)
     plt.ylabel("Predicted Class Scores - Labelled Class Scores")
 
-    plt.savefig(save_path + "_" + metric_name + "_confidence_diff_scatter.png")
+    plt.savefig(save_path + metric_name + "_confidence_diff_scatter.png")
     plt.clf()
 
 """
@@ -288,8 +295,10 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
     # Visualize Results from pipeline
     for result in data:
 
+        """
         # Process the plots per metrics
         for m in range(len(metrics)):
+            
             o = output + result.name + "_" + metrics[m].name
             print("\t\n" + result.columns[m+7])
             histogram(result, o, m + 7)
@@ -297,7 +306,7 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
             scatterplot(result, o, m + 7, y_name="Average")
             scatterplot(result, o, m + 7, y_name="Predicted Class Score")
             scatterplot_difference_confidence(result, o, metrics[m].name)
-
+        """
         if save_csv:
             print("\nSaving...\tresults.csv for " + result.name)
             result.to_csv(output + "" + result.name + ".csv")
@@ -313,39 +322,39 @@ def hons(model, tags, layer_name, input_size=(300, 225), output_size=(1022, 767)
 
 
 # e.g. filepath = [[list of image paths], [path to csv, target column], [list of segmentation paths]]
-def pre_loaded_shap(model, tags, input_size=(225, 300), output_size=(1022, 767),
+def pre_loaded_shap(model, tags, input_size=(300, 225), output_size=(1022, 767),
                     output=os.getcwd(), inside_colour=255,
                     save_matrices=False, save_imgs=False, save_csv=False):
     #       INPUT
 
-    container = [Input.Input_Image(tags[0], input_size[0], input_size[1]),
+    container = [Input.Input_Image(tags[0], input_size),
                  Input.Matrix(tags[1]),
                  Input.Segmentation(tags[2], output_size),
                  Input.Label(tags[3], "benign", "image")]
     input = Input.Sorter(container, 0)
 
     #       ALGO
-    algos = [Algorithm.empty("shap_preloaded")]
+    algos = [Algorithm.empty("NEW")]
 
     #       METRICS
-    metrics = [Metrics.Average(inside_colour)]
-    '''
+    metrics = [Metrics.Average(inside_colour),
                Metrics.N(inside_colour, 1),
                Metrics.N(inside_colour, 2),
                Metrics.N(inside_colour, 3),
-               Metrics.N(inside_colour, 4)]'''
+               Metrics.N(inside_colour, 4)]
 
     data = pipeline(input, algos, metrics, model)
 
     for result in data:
         for m in range(len(metrics)):
+            """
             o = output + result.name + "_" + metrics[m].name
             print("\t\n" + result.columns[m+6])
             histogram(result, o, m + 6)
             scatterplot(result, o, m + 6)
             scatterplot(result, o, m + 6, y_name="Average")
             scatterplot(result, o, m + 6, y_name="Predicted Class Score")
-
+            """
         if save_csv:
             print("\nSaving...\tresults.csv for " + result.name)
             result.to_csv(output + "" + result.name + ".csv")

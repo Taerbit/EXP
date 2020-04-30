@@ -16,41 +16,29 @@ class Metric(ABC):
                 str(str(size1.shape) + " != " + str(size2.shape)))
             return False
 
+    # Splits the matrix into a set of inside and outside activations through matrix multiplicaiton
+    def splitting(self, m, s, inside_colour):
 
-    # Calculate two sets of activations from the grad_matrix, those inside the segmentation and those without
-    def splitting_inside_and_outside(self, grad_matrix, segmentation, inside_colour):
+        # Drop all but one axis in the binary segmentation mask
+        s = np.delete(s, 0, 2)
+        s = np.delete(s, 0, 2)
+        s = s.squeeze()
 
-        # Split the activations of the grad matrix to two sets, inside the segmentation and outside
-        inside = []
-        outside = []
+        #Normalize the binary segmentation
+        s = s / inside_colour
 
-        for h in range(len(segmentation)):
-            for w in range(len(segmentation[h])):
-                if segmentation[h][w][0] == inside_colour:
-                    inside.append(grad_matrix[h][w])
-                else:
-                    outside.append(grad_matrix[h][w])
+        # Times the matrix by the normalized segmentation to get only the inside values
+        inside = m * s
 
-        return np.asarray(inside), np.asarray(outside)
+        # Flip the segmentation and do the same to get outside
+        s = 1-s
+        outside = m*s
 
-    # Tagging each pixel wiht an outside or inside tag
-    def tagging_inside_and_outside(self, grad_matrix, segmentation, inside_colour):
+        # Strip all inside and outside values
+        inside = inside[inside != 0]
+        outside = outside[outside != 0]
 
-        dtype = [('Importance', np.float), ('Inside', np.bool)]
-        g = np.zeros((len(grad_matrix) * len(grad_matrix[0])), dtype=dtype)
-        x = []
-
-        for h in range(len(segmentation)):
-            for w in range(len(segmentation[h])):
-                if segmentation[h][w][0] == inside_colour:
-                    x.append(True)
-                else:
-                    x.append(False)
-
-        g['Importance'] = grad_matrix.flatten()
-        g['Inside'] = x
-
-        return g
+        return inside, outside
 
 
 
@@ -66,7 +54,7 @@ class Average(Metric):
         if self.validate_sizes(matrix, segmentation):
 
             # Split the activations of the grad matrix to two sets, inside the segmentation and outside
-            inside, outside = self.splitting_inside_and_outside(matrix, segmentation, self.inside_colour)
+            inside, outside = self.splitting(matrix, segmentation, self.inside_colour)
 
             i = self.__mean(inside)
             o = self.__mean(outside)
@@ -87,8 +75,6 @@ class Average(Metric):
 
 class N(Metric):
 
-    denominator_constant = 1
-
     def __init__(self, inside_colour, x):
         self.inside_colour = inside_colour
         self.x = x
@@ -99,23 +85,23 @@ class N(Metric):
         # Input validation of matching sizes
         if self.validate_sizes(matrix, segmentation):
 
-            # Split the activations of the grad matrix to two sets, inside the segmentation and outside
-            g = self.tagging_inside_and_outside(matrix, segmentation, self.inside_colour)
-
-            # Flatten and sort the grad-cam in descending order
-            g = np.sort(g, order='Importance')
-            g = np.flip(g)
+            # Retreive the two sets
+            inside, outside = self.splitting(matrix, segmentation, self.inside_colour)
 
             # Number of pixels inside the segmentation
-            n_frg = int(np.sum(g['Inside']) / self.x)
+            n_frg = int( len(inside)/self.x )
 
-            g = g[:n_frg]
+            # Flattening the grad-matrix and sorting gives the sorted set of Inside and Outside together
+            # which can be used to find the minimum. The min can be used to cut inside and outside sets
+            sorted_matrix = matrix.flatten()
+            sorted_matrix = np.sort(sorted_matrix)
+            sorted_matrix = sorted_matrix[::-1]
 
-            i_intersection = np.sum(g['Inside'])
-            o_intersection = n_frg - i_intersection
-            #print(f"{i_intersection + o_intersection} where n equals {n_frg}")
+            min = sorted_matrix[n_frg]
+            inside = inside[inside >= min]
+            outside = outside[outside >= min]
 
-            output = i_intersection / (o_intersection + self.denominator_constant)
+            output = len(inside) / (len(inside)+len(outside))
 
             return output
 

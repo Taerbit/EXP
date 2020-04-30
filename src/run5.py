@@ -1,14 +1,11 @@
-from EXP import Controller
-import pandas as pd
+import numpy as np
+import Input
+import shap
+import matplotlib.pyplot as plt
 
-shap = pd.read_csv("C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\metric\\shap\\4\\shap.csv")
-grad = pd.read_csv("C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\metric\\Grad-CAM\\Dual Classifier\\2\\GradCAM.csv")
+img = Input.load_reg_image("..\\test\\test_data\\Lesions\\97\\ISIC_0000000.jpg", 300, 255)
+img = img.squeeze()
+shap_v = np.load("C:\\Users\\finnt\\Documents\\Honours Results\\200416_DenseNet201_001\\shap\\ISIC_0000021.npy")
 
-shap.name = "SHAP"
-grad.name = "Grad-CAM"
-
-
-metric_names = ['Average', 'N(1)', 'N(2)', 'N(3)']
-
-for m in metric_names:
-    Controller.scatterplot_difference_algorithms(grad, shap, m, "C:\\Users\\finnt\\OneDrive\\Documents\\Uni\\Year 4\\Honours\\Project\\pipeline\\output\\metric\\")
+o = shap.image_plot(shap_v, img)
+plt.show()
